@@ -36,6 +36,8 @@ And link the library **before** anything that would open files (e.g. GTK):
 cc -o demo -L`pwd` -lcapsicumizer -Wl,-rpath,`pwd` `pkg-config --cflags --libs gtk+-3.0` demo.c
 ```
 
+(`capsicumize_shm` intercepts `shm_open` and replaces the first argument with `SHM_ANON` if a substring matches. It [won't be required for GTK in the future](https://gitlab.gnome.org/GNOME/gtk/merge_requests/203).)
+
 ### As a user (`LD_PRELOAD` into an existing application)
 
 In this mode, you provide environment variables and the library will `cap_enter`.
