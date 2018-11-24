@@ -12,8 +12,8 @@
 
 - a recent version of FreeBSD
 - [Meson] build system
-- [libucl]
-- [libpreopen] (that linked fork, at least for now)
+- [libucl] >=0.8.1 (pkg: #[233383](https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=233383))
+- [libpreopen] (that linked fork, at least for now) (pkg: someday)
 
 [libucl]: https://github.com/vstakhov/libucl
 [libpreopen]: https://github.com/myfreeweb/libpreopen
@@ -29,7 +29,7 @@ Capsicumizer profiles are written in UCL syntax (which is pretty common on FreeB
 run = "/usr/local/bin/gedit";
 
 access_path = [
-	"/home/greg",
+	"$HOME",
 	"/usr/local",
 	"/var/db/fontconfig",
 	"/tmp",

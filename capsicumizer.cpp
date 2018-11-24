@@ -1,6 +1,7 @@
 #include <ucl++.h>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -22,10 +23,14 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
+	std::map<std::string, std::string> ucl_vars;
+	for (char **env = environ; *env != nullptr; env++) {
+		char *sep = strchrnul(*env, '=');
+		ucl_vars.emplace(std::string(*env, sep - *env), std::string(sep + 1));
+	}
+
 	std::string uclerr;
-	std::ifstream script_stream(argv[1]);
-	Ucl script = Ucl::parse(script_stream, uclerr);
-	script_stream.close();
+	Ucl script = Ucl::parse_from_file(argv[1], ucl_vars, uclerr);
 	if (!uclerr.empty()) {
 		std::cerr << uclerr << std::endl;
 		return -1;
@@ -54,7 +59,6 @@ int main(int argc, char *argv[]) {
 
 	caph_cache_catpages();
 	caph_cache_tzdata();
-
 	int rtld_fd = openat(AT_FDCWD, "/libexec/ld-elf.so.1", O_RDONLY);
 
 	if (cap_enter() != 0) {
