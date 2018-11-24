@@ -17,17 +17,62 @@ extern char **environ;
 
 using ucl::Ucl;
 
+std::map<std::string, std::string> get_all_env() {
+	std::map<std::string, std::string> result;
+	for (char **env = environ; *env != nullptr; env++) {
+		char *sep = strchrnul(*env, '=');
+		result.emplace(std::string(*env, sep - *env), std::string(sep + 1));
+	}
+	return result;
+}
+
+std::string open_library_dirs(Ucl ucl_arr) {
+	std::string result;
+	for (const auto &val : ucl_arr) {
+		// TODO check existence
+		int fd = openat(AT_FDCWD, val.string_value().c_str(), O_DIRECTORY | O_RDONLY);
+		result += std::to_string(fd);
+		result += ":";
+	}
+	result.pop_back();
+	return result;
+}
+
+struct po_map *open_access_dirs(Ucl ucl_arr) {
+	std::vector<std::string> access_path;
+	for (const auto &val : ucl_arr) {
+		access_path.push_back(val.string_value());
+	}
+	struct po_map *pmap = po_map_create(access_path.size());
+	for (const auto &dir : access_path) {
+		po_preopen(pmap, dir.c_str(), O_DIRECTORY);
+	}
+	return pmap;
+}
+
+int pmap_to_shm_fd(struct po_map *pmap) {
+	int shm_fd = po_pack(pmap);
+	assert(shm_fd != -1);
+	fcntl(shm_fd, F_SETFD, 0);  // un-CLOEXEC
+	return shm_fd;
+}
+
+std::string join_ld_preload(Ucl ucl_arr) {
+	std::string result = "libpreopen.so";
+	for (const auto &val : ucl_arr) {
+		result += ":";
+		result += val.string_value();
+	}
+	return result;
+}
+
 int main(int argc, char *argv[]) {
 	if (argc < 2) {
 		std::cerr << "usage: " << argv[0] << " script args.." << std::endl;
 		return -1;
 	}
 
-	std::map<std::string, std::string> ucl_vars;
-	for (char **env = environ; *env != nullptr; env++) {
-		char *sep = strchrnul(*env, '=');
-		ucl_vars.emplace(std::string(*env, sep - *env), std::string(sep + 1));
-	}
+	auto ucl_vars = get_all_env();
 
 	std::string uclerr;
 	Ucl script = Ucl::parse_from_file(argv[1], ucl_vars, uclerr);
@@ -36,50 +81,31 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	auto bin_path = script[std::string("run")].string_value();
+	std::string bin_path = script[std::string("run")].string_value();
 	int bin_fd = openat(AT_FDCWD, bin_path.c_str(), O_RDONLY);
 
-	std::string lib_dir_fds;
-	for (const auto &val : script[std::string("library_path")]) {
-		// TODO check existence
-		int fd = openat(AT_FDCWD, val.string_value().c_str(), O_DIRECTORY | O_RDONLY);
-		lib_dir_fds += std::to_string(fd);
-		lib_dir_fds += ":";
-	}
-	lib_dir_fds.pop_back();
+	std::string lib_dir_fds = open_library_dirs(script[std::string("library_path")]);
 
-	std::vector<std::string> access_path;
-	for (const auto &val : script[std::string("access_path")]) {
-		access_path.push_back(val.string_value());
-	}
-	struct po_map *pmap = po_map_create(access_path.size());
-	for (const auto &dir : access_path) {
-		po_preopen(pmap, dir.c_str(), O_DIRECTORY);
-	}
+	struct po_map *pmap = open_access_dirs(script[std::string("access_path")]);
+
+	int rtld_fd = openat(AT_FDCWD, "/libexec/ld-elf.so.1", O_RDONLY);
 
 	caph_cache_catpages();
 	caph_cache_tzdata();
-	int rtld_fd = openat(AT_FDCWD, "/libexec/ld-elf.so.1", O_RDONLY);
 
 	if (cap_enter() != 0) {
 		err(-1, "cap_enter: %d %s", errno, strerror(errno));
 	}
 
-	int shm_fd = po_pack(pmap);
-	assert(shm_fd != -1);
-	fcntl(shm_fd, F_SETFD, 0);  // un-CLOEXEC
+	int shm_fd = pmap_to_shm_fd(pmap);
+
+	std::string ld_preload = join_ld_preload(script[std::string("ld_preload")]);
+
 	if (setenv("SHARED_MEMORYFD", std::to_string(shm_fd).c_str(), 1) != 0) {
 		err(-1, "SHARED_MEMORYFD not set");
 	}
-
 	if (setenv("LD_LIBRARY_PATH_FDS", lib_dir_fds.c_str(), 1) != 0) {
 		err(-1, "LD_LIBRARY_PATH_FDS not set");
-	}
-
-	std::string ld_preload = "libpreopen.so";
-	for (const auto &val : script[std::string("ld_preload")]) {
-		ld_preload += ":";
-		ld_preload += val.string_value();
 	}
 	if (setenv("LD_PRELOAD", ld_preload.c_str(), 1) != 0) {
 		err(-1, "LD_PRELOAD not set");
