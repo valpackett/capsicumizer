@@ -1,0 +1,3 @@
+---
+Checks: 'clang-diagnostic-*,-clang-diagnostic-unused-parameter,clang-analyzer-*,portability-*,readability-*,performance-*,modernize-*,bugprone-*,cppcoreguidelines-*,-cppcoreguidelines-pro-type-reinterpret-cast,-cppcoreguidelines-pro-type-vararg'
+FormatStyle: file
