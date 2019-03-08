@@ -61,7 +61,7 @@ ld_preload = [
 ];
 ```
 
-Environment variables are exposed as UCL variables.
+Environment variables and program arguments ($0 etc.) are exposed as UCL variables.
 
 ## Contributing
 

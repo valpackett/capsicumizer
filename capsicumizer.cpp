@@ -26,6 +26,12 @@ std::map<std::string, std::string> get_all_env() {
 	return result;
 }
 
+void append_program_args(std::map<std::string, std::string> &vars, int argc, char **argv) {
+	for (int i = 0; i < argc; ++i) {
+		vars.emplace(std::to_string(i), std::string(argv[i]));
+	}
+}
+
 std::string open_library_dirs(Ucl ucl_arr) {
 	std::string result;
 	for (const auto &val : ucl_arr) {
@@ -73,6 +79,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	auto ucl_vars = get_all_env();
+	append_program_args(ucl_vars, argc-1, argv+1);
 
 	std::string uclerr;
 	Ucl script = Ucl::parse_from_file(argv[1], ucl_vars, uclerr);
