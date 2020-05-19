@@ -6,6 +6,7 @@
 #include <vector>
 
 extern "C" {
+#include <assert.h>
 #include <capsicum_helpers.h>
 #include <err.h>
 #include <libpreopen.h>
